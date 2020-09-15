@@ -1,13 +1,17 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Sep 10 16:47:31 2020
+Created on Sun Sep 13 16:15:01 2020
 
-@author: hudew
+@author: hud4
 """
 
-import torch.nn as nn
 import torch
+import torch.nn as nn
+from torch.autograd import Variable
 
+
+#%% define the single 2d convolutional LSTM cell
 '''
 LSTM cell parameters
     input_dim: (int) Number of channels of input
@@ -61,6 +65,7 @@ class ConvLSTMCell(nn.Module):
         return (torch.zeros(batch_size, self.hidden_dim, height, width, device=self.conv.weight.device),
                 torch.zeros(batch_size, self.hidden_dim, height, width, device=self.conv.weight.device))
 
+#%%  Construct layer & sequence of LSTM  
 '''
 Model parameters:
     input_dim: (int) Number of channels in input
@@ -70,10 +75,8 @@ Model parameters:
     batch_first: (bool) input dimension 0 is batchsize or not
     bias: (bool) bias for convolution
     return_all_layers: (bool) Return the list of computations for all layers
-
 Input: [batchsize,sequence_length,channel,H,W]/
        [sequence_length,batchsize,channel,H,W]
-
 Output: A tuple of two lists with length num_layers/1
         0 - layer_output_list: [[h1,h2,...,hseq],[h1',h2',...,hseq'],...]
         1 - last_state_list: [(hseq,cseq),(hseq',cseq'),...]
@@ -176,3 +179,56 @@ class ConvLSTM(nn.Module):
         if not isinstance(param, list):
             param = [param] * num_layers
         return param
+    
+#%% overall model
+class DN_LSTM(nn.Module):
+    def __init__(self, input_dim, hidden_dim, kernel_size, num_layers,
+                 batch_first=False, bias=True, return_all_layers=False):
+        super(DN_LSTM, self).__init__()
+        
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.kernel_size = kernel_size
+        self.num_layers = num_layers
+        self.batch_first = batch_first
+        self.bias = bias
+        self.return_all_layers = return_all_layers
+        
+        self.LSTM_pre = ConvLSTM(self.input_dim,self.hidden_dim,self.kernel_size,self.num_layers,
+                                 self.num_layers,self.batch_first,self.bias,self.return_all_layers)
+        
+        self.LSTM_post = ConvLSTM(self.input_dim,self.hidden_dim,self.kernel_size,self.num_layers,
+                                 self.num_layers,self.batch_first,self.bias,self.return_all_layers)
+    
+        self.fuse = nn.sequential(
+                nn.Conv2d(in_channels=2, out_channels=1, kernel_size=3, padding=1, padding_mode='replicate'),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=1, out_channels=1, kernel_size=3, padding=1, padding_mode='replicate'),
+                nn.ReLU()
+                )
+        
+    def reverse_sequence(self, input_tensor):
+        dim = list(input_tensor.size())
+        
+        if not len(dim) == 5:
+            raise Exception('Input dimension should be 5, now it is {}'.format(len(5)))
+        
+        opt = torch.zeros(dim,dtype=torch.float32)
+        for i in range(dim[1]):
+            opt[:,i,:,:,:] = input_tensor[:,dim[1]-1-i,:,:,:]
+        return opt       
+    
+    # X: [n_batch, n_seq, n_ch, H, W] 
+    # hardcode: r=2
+    def forward(self, X):
+        x_pre = X[:,:3,:,:,:]
+        x_post = self.reverse_sequence(X[:,2:,:,:,:])
+        
+        _, hc_pre = self.LSTM_pre(x_pre)
+        _, hc_post = self.LSTM_post(x_post)
+        h_pre = hc_pre[0][0]
+        h_post = hc_post[0][0]
+        
+        y_hat = self.fuse(torch.cat((h_pre,h_post),dim=1))
+        
+        return h_pre,h_post,y_hat
