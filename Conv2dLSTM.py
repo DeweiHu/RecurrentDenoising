@@ -20,50 +20,45 @@ LSTM cell parameters
     bias: (bool) add bias or not
 '''
 class ConvLSTMCell(nn.Module):
-
-    def __init__(self, input_dim, hidden_dim, kernel_size, bias):
+    def __init__(self, input_channels, hidden_channels, kernel_size, bias):
         super(ConvLSTMCell, self).__init__()
 
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
+        #assert hidden_channels % 2 == 0
 
+        self.input_channels = input_channels
+        self.hidden_channels = hidden_channels
         self.kernel_size = kernel_size
-        self.padding = kernel_size[0] // 2, kernel_size[1] // 2
         self.bias = bias
-        
-        # in_channels: concatenate of h_{t-1} and x_{t}
-        # out_channels: f,i,g,o (4 gates)
-        self.conv = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
-                              out_channels=4 * self.hidden_dim,
-                              kernel_size=self.kernel_size,
-                              padding=self.padding,
-                              bias=self.bias)
-        
-     # x: [batch,channel,n_seq,H,W]
-    def forward(self, input_tensor, cur_state):
-        h_cur, c_cur = cur_state
-        
-        combined = torch.cat([input_tensor, h_cur], dim=1)  # concatenate along channel axis
-        
-        # get concatenated 4 gates
-        combined_conv = self.conv(combined)
-        
-        # split 4 gates in channel and change domain
-        cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
-        i = torch.sigmoid(cc_i)
-        f = torch.sigmoid(cc_f)
-        o = torch.sigmoid(cc_o)
-        g = torch.tanh(cc_g)
 
-        c_next = f * c_cur + i * g
-        h_next = o * torch.tanh(c_next)
+        self.padding = int((kernel_size[0] - 1) / 2)
 
-        return h_next, c_next
+        self.Wxi = nn.Conv2d(self.input_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=self.bias)
+        self.Whi = nn.Conv2d(self.hidden_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=self.bias)
+
+        self.Wxf = nn.Conv2d(self.input_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=self.bias)
+        self.Whf = nn.Conv2d(self.hidden_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=self.bias)
+
+        self.Wxc = nn.Conv2d(self.input_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=self.bias)
+        self.Whc = nn.Conv2d(self.hidden_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=self.bias)
+
+        self.Wxo = nn.Conv2d(self.input_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=self.bias)
+        self.Who = nn.Conv2d(self.hidden_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=self.bias)
+
+
+    def forward(self, x, h, c): 
+        x = Variable(x).cuda()
+        
+        ci = torch.sigmoid(self.Wxi(x) + self.Whi(h))
+        cf = torch.sigmoid(self.Wxf(x) + self.Whf(h))
+        cc = cf * c + ci * torch.tanh(self.Wxc(x) + self.Whc(h))
+        co = torch.sigmoid(self.Wxo(x) + self.Who(h))
+        ch = co * torch.tanh(cc)
+        return ch, cc
 
     def init_hidden(self, batch_size, image_size):
-        height, width = image_size
-        return (torch.zeros(batch_size, self.hidden_dim, height, width, device=self.conv.weight.device),
-                torch.zeros(batch_size, self.hidden_dim, height, width, device=self.conv.weight.device))
+        H,W = image_size
+        return (Variable(torch.zeros(batch_size, self.hidden_channels, H, W)).cuda(),
+                Variable(torch.zeros(batch_size, self.hidden_channels, H, W)).cuda())
 
 #%%  Construct layer & sequence of LSTM  
 '''
@@ -106,8 +101,8 @@ class ConvLSTM(nn.Module):
         for i in range(0, self.num_layers):
             cur_input_dim = self.input_dim if i == 0 else self.hidden_dim[i - 1]
 
-            cell_list.append(ConvLSTMCell(input_dim=cur_input_dim,
-                                          hidden_dim=self.hidden_dim[i],
+            cell_list.append(ConvLSTMCell(input_channels=cur_input_dim,
+                                          hidden_channels=self.hidden_dim[i],
                                           kernel_size=self.kernel_size[i],
                                           bias=self.bias))
 
@@ -142,8 +137,7 @@ class ConvLSTM(nn.Module):
             
             # propagate through sequence
             for t in range(seq_len):
-                h, c = self.cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :],
-                                                 cur_state=[h, c])
+                h, c = self.cell_list[layer_idx](cur_layer_input[:, t, :, :, :], h, c)
                 output_inner.append(h)
 
             layer_output = torch.stack(output_inner, dim=1)
@@ -183,7 +177,7 @@ class ConvLSTM(nn.Module):
 #%% overall model
 class DN_LSTM(nn.Module):
     def __init__(self, input_dim, hidden_dim, kernel_size, num_layers,
-                 batch_first=False, bias=True, return_all_layers=False):
+                 batch_first, bias, return_all_layers):
         super(DN_LSTM, self).__init__()
         
         self.input_dim = input_dim
@@ -195,12 +189,12 @@ class DN_LSTM(nn.Module):
         self.return_all_layers = return_all_layers
         
         self.LSTM_pre = ConvLSTM(self.input_dim,self.hidden_dim,self.kernel_size,self.num_layers,
-                                 self.num_layers,self.batch_first,self.bias,self.return_all_layers)
+                                 self.batch_first,self.bias,self.return_all_layers)
         
         self.LSTM_post = ConvLSTM(self.input_dim,self.hidden_dim,self.kernel_size,self.num_layers,
-                                 self.num_layers,self.batch_first,self.bias,self.return_all_layers)
+                                 self.batch_first,self.bias,self.return_all_layers)
     
-        self.fuse = nn.sequential(
+        self.fuse = nn.Sequential(
                 nn.Conv2d(in_channels=2, out_channels=1, kernel_size=3, padding=1, padding_mode='replicate'),
                 nn.ReLU(),
                 nn.Conv2d(in_channels=1, out_channels=1, kernel_size=3, padding=1, padding_mode='replicate'),
@@ -224,8 +218,8 @@ class DN_LSTM(nn.Module):
         x_pre = X[:,:3,:,:,:]
         x_post = self.reverse_sequence(X[:,2:,:,:,:])
         
-        _, hc_pre = self.LSTM_pre(x_pre)
-        _, hc_post = self.LSTM_post(x_post)
+        _, hc_pre = self.LSTM_pre(x_pre,None)
+        _, hc_post = self.LSTM_post(x_post,None)
         h_pre = hc_pre[0][0]
         h_post = hc_post[0][0]
         
