@@ -15,7 +15,6 @@ import pickle,time
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -25,16 +24,18 @@ from torch.optim.lr_scheduler import StepLR
 from torch.autograd import Variable
 
 dataroot = '/home/hud4/Desktop/2020/Data/'
+modelroot = '/home/hud4/Desktop/2020/Model/'
 
 # Model
 input_ch = 1
-hidden_ch = [16,1]
+hidden_ch = [16,32,8,1]
 kernel_size = (3,3)
-num_layers = 2
+num_layers = 4
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 model = Conv2dLSTM_v2.ConvLSTM(input_ch,hidden_ch,kernel_size,True)
+model.load_state_dict(torch.load(modelroot+'LSTM_4layers.pt'))
 model = model.to(device)
 
 layers = []
@@ -89,7 +90,7 @@ train_loader = Data.DataLoader(dataset=MyDataset(dataroot+'train.pickle'),
                                batch_size=batch_size, shuffle=True)
 
 #%% loss
-num_epoch = 30
+num_epoch = 5
 
 criterion1 = nn.L1Loss()
 criterion2 = nn.MSELoss()
@@ -107,7 +108,7 @@ t1 = time.time()
 for epoch in range(num_epoch):
     
     epoch_loss = 0
-    grad_mat = np.zeros([len(layers),len(train_loader)],dtype=np.float64)
+    grad_mat = np.zeros([len(layers),len(train_loader)],dtype=np.float32)
     
     for step,(x,y) in enumerate(train_loader): 
         model.train()
@@ -130,7 +131,7 @@ for epoch in range(num_epoch):
             if(p.requires_grad) and ("bias" not in n):
                 ave_grads.append(p.grad.abs().mean().item())
         for i in range(len(layers)):
-            grad_mat[i,step] = ave_grads[i]
+            grad_mat[i,step] = np.float32(ave_grads[i])
             
         # visualize the gradient flow
         if step % 200 == 0 and step != 0:
@@ -159,16 +160,17 @@ for epoch in range(num_epoch):
                 plt.ylabel("average gradient")
                 plt.title("Gradient flow")
                 plt.grid(True)
+            plt.show()
                 
     sum_loss.append(epoch_loss)
     scheduler.step()
+    
+    del im_hat, im_y, grad_mat, ave_grads
     
 t2 = time.time()
 
 print('time:{} min'.format((t2-t1)/60))
 
 #%%
-stat = []
-for name, param in model.named_parameters():
-    pair = (name,param.grad)
-    stat.append(pair)
+name = 'LSTM_4layers.pt'
+torch.save(model.state_dict(),modelroot+name)
