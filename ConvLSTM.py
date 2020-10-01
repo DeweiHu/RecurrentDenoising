@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Sep 29 13:13:47 2020
-
 @author: hud4
 """
 
@@ -48,6 +47,37 @@ class ConvLSTMcell(nn.Module):
         return ch, cc
 
 '''
-
+nlayer: [int] cell layers
+nch_x: [int] number of channels of input image
+nch_h: [tuple] a tuple that contains number of channels of every layer
+kernal_size: [tuple] a tuple that contains kernel size of each layer
+bias: [boolean]  
 '''
-class 
+class LSTMModel(nn.Module):
+    def __init__(self, nlayer, nch_x, nch_h, kernel_size, bias):
+        super(LSTMModel, self).__init__()
+        # check layer number 
+        if not len(kernel_size) == len(nch_h) == nlayer:
+            raise ValueError('Inconsistent list length.')
+        
+        self.nlayer = nlayer
+        self.nch_x = nch_x
+        self.nch_h = nch_h
+        self.kernel_size = kernel_size
+        self.bias = bias
+        
+        # len(nch_x, nch_h10, nch_h20, ..., nch_hn0)= n+1 
+        self.dim_list = (self.nch_x,) + self.nch_h
+        self.cell_list = []
+        for i in range(self.nlayer):
+            self.cell_list.append(ConvLSTMcell(self.dim_list[i], self.dim_list[i+1],
+                                               self.kernel_size[i], self.bias))    
+        
+        
+        
+        
+        
+        
+        
+        
+ 
