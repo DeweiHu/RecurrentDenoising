@@ -68,16 +68,43 @@ class LSTMModel(nn.Module):
         
         # len(nch_x, nch_h10, nch_h20, ..., nch_hn0)= n+1 
         self.dim_list = (self.nch_x,) + self.nch_h
-        self.cell_list = []
+        cell_list = []
         for i in range(self.nlayer):
             self.cell_list.append(ConvLSTMcell(self.dim_list[i], self.dim_list[i+1],
                                                self.kernel_size[i], self.bias))    
+        self.cell_list = nn.ModuleList(cell_list)
+    
+    # h_, c_ are tuples h_ = (h10,h20,h30,...,hn0)
+    def forward(self, input_tensor, h_, c_):
+        n_batch, n_seq, n_ch, H, W = input_tensor.shape
+        # state buffer
+        h_buff = ()
+        c_buff = ()
+        
+        # iter over sequence
+        for i in range(n_seq):
+            x = input_tensor[:,i,:,:,:]
+            # iter over layers
+            for j in range(len(self.cell_list)):
+                h, c = self.cell_list[j](x, h_[j], c_[j])
+                # save the hidden and cell state in a buffer
+                h_buff = h_buff + (h,)
+                c_buff = c_buff + (c,)
+                # update the input
+                x = h
+            # update the state of all layers
+            h_ = h_buff
+            c_ = c_buff
+        
+        # the final output
+        return h_[-1]
+    
+    def init_state(self, nch_h):
+        h_ = ()
+        c_ = ()
+        for i in range(len(nch_h)):
+            
         
         
         
         
-        
-        
-        
-        
- 
