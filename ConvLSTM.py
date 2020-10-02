@@ -46,16 +46,10 @@ class ConvLSTMcell(nn.Module):
         ch = co * torch.tanh(cc)
         return ch, cc
 
-'''
-nlayer: [int] cell layers
-nch_x: [int] number of channels of input image
-nch_h: [tuple] a tuple that contains number of channels of every layer
-kernal_size: [tuple] a tuple that contains kernel size of each layer
-bias: [boolean]  
-'''
-class LSTMModel(nn.Module):
+#%% Residual LSTM
+class ResLSTM(nn.Module):
     def __init__(self, nlayer, nch_x, nch_h, kernel_size, bias, device):
-        super(LSTMModel, self).__init__()
+        super(ResLSTM, self).__init__()
         # check layer number 
         if not len(kernel_size) == len(nch_h) == nlayer:
             raise ValueError('Inconsistent list length.')
@@ -74,13 +68,13 @@ class LSTMModel(nn.Module):
             cell_list.append(ConvLSTMcell(self.dim_list[i], self.dim_list[i+1],
                                           self.kernel_size[i], self.bias, device))    
         self.cell_list = nn.ModuleList(cell_list)
-    
+        
     # h_, c_ are tuples h_ = (h10,h20,h30,...,hn0)
     def forward(self, input_tensor):
         n_batch, n_seq, n_ch, H, W = input_tensor.shape
         
         # initialize states
-        h_, c_ = self.init_state(n_batch, self.nch_h, H, W, self.device)
+        h_, c_ = self.init_state(input_tensor, self.nch_h, self.device)
         
         # state buffer
         h_buff = ()
@@ -96,25 +90,25 @@ class LSTMModel(nn.Module):
                 h_buff = h_buff + (h,)
                 c_buff = c_buff + (c,)
                 # update the input
-                x = h
+                x = h+x
             # update the state of all layers
             h_ = h_buff
             c_ = c_buff
         
         # the final output
         return h_[-1]
-    
-    def init_state(self, n_batch, nch_h, H, W, device):
+        
+    def init_state(self, input_tensor, nch_h, device):
         h_ = ()
         c_ = ()
+        n_batch, n_seq, n_ch, H, W = input_tensor.shape
+        
+        # initialize with input 
         for i in range(len(nch_h)):
-            h0 = torch.empty(n_batch, nch_h[i], H, W).to(device)
-            nn.init.xavier_normal_(h0)
-            c0 = torch.empty(n_batch, nch_h[i], H, W).to(device)
-            nn.init.xavier_normal_(c0)
+            h0 = input_tensor[:,0,:,:,:].to(device)
+            c0 = torch.mean(input_tensor,dim=1,keepdim=True)
             h_ = h_ + (h0,)
             c_ = c_ + (c0,)
         return h_, c_
-        
         
         
