@@ -55,8 +55,8 @@ for i in range(len(HN_list)):
         train_data = train_data+((x,y),)
         
         if j == 300:
-            r1 = np.concatenate((x[0,:,:],x[1,:,:],x[2,:,:]),axis=1)
-            r2 = np.concatenate((x[3,:,:],x[4,:,:],y),axis=1)
+            r1 = np.concatenate((x[0,:,:W],x[1,:,:W],x[2,:,:W]),axis=1)
+            r2 = np.concatenate((x[3,:,:W],x[4,:,:W],y),axis=1)
             plt.figure(figsize=(12,8))
             plt.axis('off'),plt.title('Regist Result',fontsize=15)
             plt.imshow(np.concatenate((r1,r2),axis=0),cmap='gray')
