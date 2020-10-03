@@ -13,16 +13,15 @@ import MotionCorrection as MC
 import os, time, pickle
 import numpy as np
 import matplotlib.pyplot as plt
-from skimage import io
 
 dataroot = 'E:\\HumanData\\'
 HN_list = []
 LN_list = []
 
 for file in os.listdir(dataroot):
-    if file.startswith('HN') and file.endswith('2.nii.gz'):
+    if file.startswith('HN'):
         HN_list.append(file)
-    elif file.startswith('LN') and file.endswith('2.nii.gz'):
+    elif file.startswith('LN'):
         LN_list.append(file)
 HN_list.sort()
 LN_list.sort()
@@ -51,12 +50,13 @@ for i in range(len(HN_list)):
     
     for j in range(n_seq,nBscan):
         x = BscanRegist(vol_x[j-5:j,:,:])
-        y = vol_y[j,:,:]
+        y = np.zeros([H,H],dtype=np.float32)
+        y[:,:W] = vol_y[j,:,:]
         train_data = train_data+((x,y),)
         
         if j == 300:
-            r1 = np.concatenate((x[0,:,:W],x[1,:,:W],x[2,:,:W]),axis=1)
-            r2 = np.concatenate((x[3,:,:W],x[4,:,:W],y),axis=1)
+            r1 = np.concatenate((x[0,:,:],x[1,:,:],x[2,:,:]),axis=1)
+            r2 = np.concatenate((x[3,:,:],x[4,:,:],y),axis=1)
             plt.figure(figsize=(12,8))
             plt.axis('off'),plt.title('Regist Result',fontsize=15)
             plt.imshow(np.concatenate((r1,r2),axis=0),cmap='gray')
