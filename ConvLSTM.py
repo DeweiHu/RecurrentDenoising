@@ -47,6 +47,75 @@ class ConvLSTMcell(nn.Module):
         return ch, cc
 
 #%% Residual LSTM
+class baseLSTM(nn.Module):
+    def __init__(self, nlayer, nch_x, nch_h, kernel_size, bias, device):
+        super(baseLSTM, self).__init__()
+        # check layer number 
+        if not len(kernel_size) == len(nch_h) == nlayer:
+            raise ValueError('Inconsistent list length.')
+        
+        self.nlayer = nlayer
+        self.nch_x = nch_x
+        self.nch_h = nch_h
+        self.kernel_size = kernel_size
+        self.bias = bias
+        self.device = device
+        
+        # len(nch_x, nch_h10, nch_h20, ..., nch_hn0)= n+1 
+        self.dim_list = (self.nch_x,) + self.nch_h
+        cell_list = []
+        for i in range(self.nlayer):
+            cell_list.append(ConvLSTMcell(self.dim_list[i], self.dim_list[i+1],
+                                          self.kernel_size[i], self.bias, device))
+ 
+        self.cell_list = nn.ModuleList(cell_list)
+        
+    # h_, c_ are tuples h_ = (h10,h20,h30,...,hn0)
+    def forward(self, input_tensor):
+        n_batch, n_seq, n_ch, H, W = input_tensor.shape
+        
+        # initialize states
+        h_, c_ = self.init_state(input_tensor, self.nch_h, self.device)
+        
+        # state buffer
+        h_buff = ()
+        c_buff = ()
+        
+        # iter over sequence
+        for i in range(n_seq):
+            x = input_tensor[:,i,:,:,:]
+            # iter over layers
+            for j in range(len(self.cell_list)):
+                h, c = self.cell_list[j](x, h_[j], c_[j])
+                # save the hidden and cell state in a buffer
+                h_buff = h_buff + (h,)
+                c_buff = c_buff + (c,)
+                # update the input
+                x = h
+            # update the state of all layers
+            h_ = h_buff
+            c_ = c_buff
+        
+        # the final output
+        return x
+        
+    def init_state(self, input_tensor, nch_h, device):
+        h_ = ()
+        c_ = ()
+        n_batch, n_seq, n_ch, H, W = input_tensor.shape
+        
+        # initialize with input 
+        for i in range(len(nch_h)):
+            h0 = torch.empty(n_batch,nch_h[i], H, W).to(device)
+            c0 = torch.empty(n_batch,nch_h[i], H, W).to(device)
+            for j in range(nch_h[i]):
+                h0[:,j,:,:] = input_tensor[:,0,:,:,:]
+                c0[:,j,:,:] = torch.mean(input_tensor,dim=1,keepdim=True)
+            h_ = h_ + (h0,)
+            c_ = c_ + (c0,)
+        return h_, c_
+    
+#%% Residual LSTM
 class ResLSTM(nn.Module):
     def __init__(self, nlayer, nch_x, nch_h, kernel_size, bias, device):
         super(ResLSTM, self).__init__()
