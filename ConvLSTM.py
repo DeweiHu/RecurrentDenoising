@@ -64,10 +64,19 @@ class ResLSTM(nn.Module):
         # len(nch_x, nch_h10, nch_h20, ..., nch_hn0)= n+1 
         self.dim_list = (self.nch_x,) + self.nch_h
         cell_list = []
+        res_list = []
         for i in range(self.nlayer):
             cell_list.append(ConvLSTMcell(self.dim_list[i], self.dim_list[i+1],
-                                          self.kernel_size[i], self.bias, device))    
+                                          self.kernel_size[i], self.bias, device))
+            res_list.append(nn.Conv2d(in_channels = self.dim_list[i],
+                                      out_channels = self.dim_list[i+1],
+                                      kernel_size = self.kernel_size[i],
+                                      stride = 1,
+                                      padding = int((self.kernel_size[i]-1)/2),
+                                      bias = True)
+                            )   
         self.cell_list = nn.ModuleList(cell_list)
+        self.res_list = nn.ModuleList(res_list)
         
     # h_, c_ are tuples h_ = (h10,h20,h30,...,hn0)
     def forward(self, input_tensor):
@@ -90,13 +99,13 @@ class ResLSTM(nn.Module):
                 h_buff = h_buff + (h,)
                 c_buff = c_buff + (c,)
                 # update the input
-                x = h+x
+                x = h + self.res_list[j](x)
             # update the state of all layers
             h_ = h_buff
             c_ = c_buff
         
         # the final output
-        return h_[-1]
+        return x
         
     def init_state(self, input_tensor, nch_h, device):
         h_ = ()
@@ -105,8 +114,11 @@ class ResLSTM(nn.Module):
         
         # initialize with input 
         for i in range(len(nch_h)):
-            h0 = input_tensor[:,0,:,:,:].to(device)
-            c0 = torch.mean(input_tensor,dim=1,keepdim=True)
+            h0 = torch.empty(n_batch,nch_h[i], H, W).to(device)
+            c0 = torch.empty(n_batch,nch_h[i], H, W).to(device)
+            for j in range(nch_h[i]):
+                h0[:,j,:,:] = input_tensor[:,0,:,:,:]
+                c0[:,j,:,:] = torch.mean(input_tensor,dim=1,keepdim=True)
             h_ = h_ + (h0,)
             c_ = c_ + (c0,)
         return h_, c_
