@@ -77,13 +77,12 @@ class baseLSTM(nn.Module):
         # initialize states
         h_, c_ = self.init_state(input_tensor, self.nch_h, self.device)
         
-        # state buffer
-        h_buff = ()
-        c_buff = ()
-        
         # iter over sequence
         for i in range(n_seq):
             x = input_tensor[:,i,:,:,:]
+            # state buffer
+            h_buff = ()
+            c_buff = ()
             # iter over layers
             for j in range(len(self.cell_list)):
                 h, c = self.cell_list[j](x, h_[j], c_[j])
@@ -154,13 +153,12 @@ class ResLSTM(nn.Module):
         # initialize states
         h_, c_ = self.init_state(input_tensor, self.nch_h, self.device)
         
-        # state buffer
-        h_buff = ()
-        c_buff = ()
-        
         # iter over sequence
         for i in range(n_seq):
             x = input_tensor[:,i,:,:,:]
+            # state buffer
+            h_buff = ()
+            c_buff = ()
             # iter over layers
             for j in range(len(self.cell_list)):
                 h, c = self.cell_list[j](x, h_[j], c_[j])
