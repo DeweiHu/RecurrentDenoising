@@ -1,2 +1,2 @@
 # RecurrentDenoising
-<img src="/images/UNet%2BLSTM.PNG" width="400" height="200">
+<img src="/images/UNet%2BLSTM.PNG" width="600" height="300">
