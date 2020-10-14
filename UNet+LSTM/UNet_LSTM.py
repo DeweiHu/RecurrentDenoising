@@ -9,15 +9,14 @@ import torch
 import torch.nn as nn
 
 # h,c: [batch, n_channel, H, W]
-def state_init(n_ch,batch_size,H,W):
-    state = [[]]*2
+def state_init(n_ch,batch_size,H,W,device):
+    h_ = []
+    c_ = []
     nch = n_ch + n_ch[-1:]
     for i in range(len(nch)):
-        H = int(H/(i+1))
-        W = int(W(i+1))
-        state[0].append(torch.zeros(batch_size,nch[i],H,W))
-        state[1].append(torch.zeros(batch_size,nch[i],H,W))
-    return state
+        h_.append(torch.zeros(batch_size,nch[i],int(H/2**i),int(W/2**i)).to(device))
+        c_.append(torch.zeros(batch_size,nch[i],int(H/2**i),int(W/2**i)).to(device))
+    return h_, c_
         
 '''
 nch_x: [int] number of channels of input x
@@ -89,28 +88,29 @@ class lstm_UNet(nn.Module):
         self.cell_list = nn.ModuleList(cell_list)
 
         # define the Res_branch and transition in encoder & decoder
-        # for encoder/decoder[0]/[1] --> dual path/single path
-        #     transition[0]/[1] --> transition down/transition up
-        encoder = [[]]*2
-        decoder = [[]]*2
-        transition = [[]]*2
+        encoder_dual = []
+        encoder_single = []
+        decoder_dual = []
+        decoder_single = []
+        transition_up = []
+        transition_down = []
         
         for i in range(len(self.enc_nch)):
             # encoder
-            encoder[0].append(self.dual_branch(self.res_nch[i],self.res_nch[i+1]))
-            encoder[1].append(self.single_branch(self.res_nch[i],self.res_nch[i+1]))
-            transition[0].append(self.Transdown(self.enc_nch[i],self.enc_nch[i]))
+            encoder_dual.append(self.dual_branch(self.res_nch[i],self.res_nch[i+1]))
+            encoder_single.append(self.single_branch(self.res_nch[i],self.res_nch[i+1]))
+            transition_down.append(self.Transdown(self.enc_nch[i],self.enc_nch[i]))
             # decoder
-            transition[1].append(self.Transup(self.enc_nch[-1-i],self.enc_nch[-1-i]))
-            decoder[0].append(self.dual_branch(self.res_nch[-1-i]*2,self.res_nch[-2-i]))
-            decoder[1].append(self.single_branch(self.res_nch[-1-i]*2,self.res_nch[-2-i]))
+            transition_up.append(self.Transup(self.enc_nch[-1-i],self.enc_nch[-1-i]))
+            decoder_dual.append(self.dual_branch(self.res_nch[-1-i]*2,self.res_nch[-2-i]))
+            decoder_single.append(self.single_branch(self.res_nch[-1-i]*2,self.res_nch[-2-i]))
             
-        self.encoder_dual = nn.ModuleList(encoder[0])
-        self.encoder_single = nn.ModuleList(encoder[1])
-        self.decoder_dual = nn.ModuleList(decoder[0])
-        self.decoder_single = nn.ModuleList(decoder[1])
-        self.transition_down = nn.ModuleList(transition[0]) 
-        self.transition_up = nn.ModuleList(transition[1])
+        self.encoder_dual = nn.ModuleList(encoder_dual)
+        self.encoder_single = nn.ModuleList(encoder_single)
+        self.decoder_dual = nn.ModuleList(decoder_dual)
+        self.decoder_single = nn.ModuleList(decoder_single)
+        self.transition_down = nn.ModuleList(transition_down) 
+        self.transition_up = nn.ModuleList(transition_up)
         
         self.relu = nn.ReLU()
     
@@ -186,6 +186,6 @@ class lstm_UNet(nn.Module):
                           kernel_size = 3,
                           stride = 1,
                           padding = 1),
-                nn.BatchNorm2d(num_features=in_ch),
+                nn.BatchNorm2d(num_features=out_ch),
                 nn.ELU()
                 )
