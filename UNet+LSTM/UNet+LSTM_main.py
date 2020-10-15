@@ -105,12 +105,13 @@ for epoch in range(n_epoch):
             
         if step == len(train_loader)-1:
             pred = util.ImageRescale(y_pred[0,0,:,:500].detach().cpu().numpy(),[0,255])
-            gt = util.ImageRescale(y[0,:,:500].detach().cpu().numpy(),[0,255])
+            im_y = util.ImageRescale(y[0,0,:,:500].detach().cpu().numpy(),[0,255])
+            im_x = util.ImageRescale(x[0,0,:,:500].detach().cpu().numpy(),[0,255])
             
-            plt.figure(figsize=(12,6))
+            plt.figure(figsize=(18,6))
             plt.axis('off')
-            plt.title('Epoch: {}'.format(epoch),fontsize=15)
-            plt.imshow(np.concatenate((pred,gt),axis=1),cmap='gray')
+            plt.title('Epoch: {}'.format(epoch+1),fontsize=15)
+            plt.imshow(np.concatenate((im_x,pred,im_y),axis=1),cmap='gray')
             plt.show()
 
 t2 = time.time()
