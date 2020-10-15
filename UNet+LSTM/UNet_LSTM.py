@@ -134,7 +134,7 @@ class lstm_UNet(nn.Module):
         for i in range(len(self.enc_nch)):
             x = self.transition_up[i](layer_opt)
             x = torch.cat([x, h_[-2-i]],dim=1)
-            layer_opt = torch.add(self.decoder_dual[i](x),self.decoder_single[i](x))
+            layer_opt = self.relu(torch.add(self.decoder_dual[i](x),self.decoder_single[i](x)))
         
         y_pred = layer_opt
         
