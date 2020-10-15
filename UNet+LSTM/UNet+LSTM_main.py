@@ -50,6 +50,7 @@ class MyDataset(Data.Dataset):
         x_tensor = torch.tensor(x).type(torch.FloatTensor)
         x_tensor = torch.unsqueeze(x_tensor,dim=1)  # add channel dimension
         y_tensor = torch.tensor(y).type(torch.FloatTensor)
+        y_tensor = torch.unsqueeze(y_tensor,dim=1)
         return x_tensor, y_tensor    
         
     def __init__(self, dir):
@@ -96,10 +97,10 @@ for epoch in range(n_epoch):
             sum_loss += loss
             
             optimizer.zero_grad()
-            loss.backward(retain_graph=True)
+            loss.backward()
             optimizer.step()
         
-        if step % 200 == 0 and step != 0:
+        if step % 200 == 0:
             print('[%d/%d][%d/%d]\tLoss: %.4f'%(epoch,n_epoch,step,len(train_loader),loss.item()))
             
         if step == len(train_loader)-1:

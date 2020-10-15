@@ -124,10 +124,10 @@ class lstm_UNet(nn.Module):
         for i in range(len(self.enc_nch)):
             layer_opt = self.relu(torch.add(self.encoder_dual[i](x),self.encoder_single[i](x)))
             x = self.transition_down[i](layer_opt)
-            h_[i], c_[i] = self.cell_list[i](layer_opt,h_[i],c_[i])
+            h_[i], c_[i] = self.cell_list[i](layer_opt,h_[i].detach(),c_[i].detach())
         
         # bottom layer
-        h_[-1], c_[-1] = self.cell_list[-1](x,h_[-1],c_[-1])
+        h_[-1], c_[-1] = self.cell_list[-1](x,h_[-1].detach(),c_[-1].detach())
         layer_opt = h_[-1]
         
         # decoder
