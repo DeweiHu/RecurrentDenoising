@@ -32,8 +32,12 @@ class res_UNet(nn.Module):
             transition_down.append(self.Transdown(self.enc_nch[i],self.enc_nch[i]))
             # decoder
             transition_up.append(self.Transup(self.enc_nch[-1-i],self.enc_nch[-1-i]))
-            decoder_dual.append(self.dual_branch(self.res_nch[-1-i]*2,self.res_nch[-2-i]))
-            decoder_single.append(self.single_branch(self.res_nch[-1-i]*2,self.res_nch[-2-i]))
+            if i == len(self.enc_nch)-1:
+                decoder_dual.append(self.dual_branch(self.res_nch[-1-i]*2,1))
+                decoder_single.append(self.single_branch(self.res_nch[-1-i]*2,1))
+            else:
+                decoder_dual.append(self.dual_branch(self.res_nch[-1-i]*2,self.res_nch[-2-i]))
+                decoder_single.append(self.single_branch(self.res_nch[-1-i]*2,self.res_nch[-2-i]))
             
         self.encoder_dual = nn.ModuleList(encoder_dual)
         self.encoder_single = nn.ModuleList(encoder_single)
